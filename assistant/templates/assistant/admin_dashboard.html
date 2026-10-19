@@ -1,0 +1,300 @@
+{% extends 'assistant/base.html' %}
+{% load static %}
+
+{% block title %}MIICiQ — Knowledge Administration & Analytics{% endblock %}
+
+{% block top_title %}Knowledge Administration & Query Analytics{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+  <!-- Top Metrics KPI Cards -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <span class="metric-label">Indexed Documents</span>
+      <span class="metric-value">{{ indexed_docs }} <span style="font-size:0.9rem; color:var(--text-muted); font-weight:normal;">/ {{ total_docs }}</span></span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Vector Chunks in DB</span>
+      <span class="metric-value" style="color:var(--accent-cyan)">{{ total_chunks }}</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Total User Inquiries</span>
+      <span class="metric-value">{{ total_queries }}</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Avg Retrieval Latency</span>
+      <span class="metric-value" style="color:var(--accent-emerald)">{{ avg_latency }} <span style="font-size:0.9rem; font-weight:normal;">ms</span></span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">User Satisfaction</span>
+      <span class="metric-value" style="color:var(--accent-amber)">{{ satisfaction_rate }}%</span>
+    </div>
+  </div>
+
+  <!-- Admin Navigation Tabs -->
+  <div class="admin-tabs">
+    <button type="button" class="admin-tab-btn active" data-tab="tabDocuments">📚 Document Library & Upload</button>
+    <button type="button" class="admin-tab-btn" data-tab="tabAnalytics">📊 Query Analytics & Missing Docs</button>
+    <button type="button" class="admin-tab-btn" data-tab="tabAudit">🔍 Security & Query Audit Log</button>
+    <button type="button" class="admin-tab-btn" data-tab="tabSystem">⚙️ System & Local LLM Config</button>
+  </div>
+
+  <!-- TAB 1: Document Library & Upload -->
+  <div class="tab-pane" id="tabDocuments" style="display:block;">
+    <!-- Document Upload Card -->
+    <div class="upload-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div>
+          <h2 style="font-size:1.15rem; font-weight:700;">Upload & Index Company Document</h2>
+          <p style="color:var(--text-muted); font-size:0.8rem;">Supported formats: PDF, DOCX, TXT, MD, XLSX, CSV. Chunked automatically (500-1000 tokens) with hybrid vector embeddings.</p>
+        </div>
+        <button id="btnRebuildIndex" class="btn-new-chat" style="width:auto; padding:0.5rem 1rem; border-color:var(--accent-cyan); color:var(--accent-cyan);">
+          🔄 Rebuild Vector Index
+        </button>
+      </div>
+
+      <form id="docUploadForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="docFile">Document File *</label>
+            <input type="file" id="docFile" name="file" class="form-control" required accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv">
+          </div>
+          <div class="form-group">
+            <label for="docTitle">Document Title (Optional)</label>
+            <input type="text" id="docTitle" name="title" class="form-control" placeholder="Defaults to filename">
+          </div>
+          <div class="form-group">
+            <label for="docCategory">Category</label>
+            <select id="docCategory" name="category" class="form-control">
+              {% for val, label in categories %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="docDept">Department</label>
+            <input type="text" id="docDept" name="department" class="form-control" placeholder="All / HR / Sales / IT" value="All">
+          </div>
+          <div class="form-group">
+            <label for="docVersion">Version</label>
+            <input type="text" id="docVersion" name="version" class="form-control" value="v1.0">
+          </div>
+          <div class="form-group">
+            <label for="docAccess">Access Role</label>
+            <select id="docAccess" name="access_role" class="form-control">
+              {% for val, label in access_roles %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:1.25rem; display:flex; align-items:center; gap:1rem;">
+          <button type="submit" id="btnUploadSubmit" class="btn-new-chat" style="width:auto; background:var(--accent-cyan); color:#0b0f19; font-weight:700;">
+            Upload & Ingest Document
+          </button>
+          <div id="uploadStatus" style="font-size:0.85rem;"></div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Active Documents Table -->
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Document Title</th>
+            <th>Category</th>
+            <th>Department</th>
+            <th>Version</th>
+            <th>Access Role</th>
+            <th>Chunks</th>
+            <th>Status</th>
+            <th>Uploaded</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in documents %}
+            <tr>
+              <td>
+                <strong>{{ d.title }}</strong>
+                <div style="font-size:0.7rem; color:var(--text-muted);">{{ d.file_type|upper }} • {{ d.file_size|filesizeformat }}</div>
+              </td>
+              <td>{{ d.category }}</td>
+              <td>{{ d.department }}</td>
+              <td>{{ d.version }}</td>
+              <td>
+                <span class="citation-badge">{{ d.get_access_role_display }}</span>
+              </td>
+              <td><strong>{{ d.chunk_count }}</strong></td>
+              <td>
+                <span class="badge-status {{ d.status }}">{{ d.get_status_display }}</span>
+                {% if d.error_message %}
+                  <div style="font-size:0.7rem; color:var(--accent-rose); max-width:180px; overflow:hidden; text-overflow:ellipsis;">{{ d.error_message }}</div>
+                {% endif %}
+              </td>
+              <td style="font-size:0.75rem;">{{ d.created_at|date:"M d, Y" }}</td>
+              <td>
+                <div style="display:flex; gap:0.35rem;">
+                  <button type="button" class="btn-switch-role btn-reindex-doc" data-doc-id="{{ d.id }}" title="Re-index this document">Re-index</button>
+                  <button type="button" class="btn-switch-role btn-delete-doc" data-doc-id="{{ d.id }}" data-doc-title="{{ d.title }}" style="color:var(--accent-rose); border-color:rgba(244,63,94,0.3);" title="Delete document">Delete</button>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                No documents uploaded yet. Ingest your first company SOP or run sample ingestion.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: Query Analytics & Missing Docs -->
+  <div class="tab-pane" id="tabAnalytics" style="display:none;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+      <!-- Top Inquiries -->
+      <div class="upload-card">
+        <h3 style="font-size:1rem; margin-bottom:0.75rem;">🔥 Most Frequent Inquiries</h3>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Question / Topic</th>
+                <th style="width:70px; text-align:right;">Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for q in top_queries %}
+                <tr>
+                  <td>{{ q.query_text }}</td>
+                  <td style="text-align:right;"><strong>{{ q.total }}</strong></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2" style="color:var(--text-muted);">No queries recorded yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Unanswered / Low Confidence Queries (Content Gap Identification) -->
+      <div class="upload-card">
+        <h3 style="font-size:1rem; margin-bottom:0.75rem;">⚠️ Low Confidence / Unanswered Queries</h3>
+        <p style="color:var(--text-muted); font-size:0.75rem; margin-bottom:0.75rem;">
+          Inquiries where similarity score was below confidence threshold. Use these to identify missing company policies.
+        </p>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>User Query</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lq in low_confidence_queries %}
+                <tr>
+                  <td>{{ lq.query_text }}</td>
+                  <td style="font-size:0.75rem; color:var(--text-muted);">{{ lq.created_at|timesince }} ago</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2" style="color:var(--accent-emerald);">All queries had high-confidence source citations! 🎉</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Security & Query Audit Log -->
+  <div class="tab-pane" id="tabAudit" style="display:none;">
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>User & Role</th>
+            <th>Mode</th>
+            <th>Query Text</th>
+            <th>Sources Cited</th>
+            <th>Latency</th>
+            <th>Feedback</th>
+            <th>Client IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in audit_logs %}
+            <tr>
+              <td style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td>
+                <strong>{{ log.user.username|default:"Anonymous" }}</strong>
+                <span class="citation-badge">{{ log.user_role }}</span>
+              </td>
+              <td><span class="citation-badge">{{ log.mode|upper }}</span></td>
+              <td style="max-width:320px; word-break:break-word;">{{ log.query_text }}</td>
+              <td>{{ log.retrieved_sources_count }} sources</td>
+              <td style="font-size:0.75rem;">{{ log.response_latency_ms }} ms</td>
+              <td>
+                {% if log.feedback_rating == 1 %}
+                  <span style="color:var(--accent-emerald)">👍 Helpful</span>
+                {% elif log.feedback_rating == -1 %}
+                  <span style="color:var(--accent-rose)">👎 Issue</span>
+                {% else %}
+                  <span style="color:var(--text-muted)">—</span>
+                {% endif %}
+              </td>
+              <td style="font-size:0.75rem; color:var(--text-muted);">{{ log.ip_address|default:"127.0.0.1" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No audit logs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 4: System & Local LLM Config -->
+  <div class="tab-pane" id="tabSystem" style="display:none;">
+    <div class="upload-card">
+      <h3 style="font-size:1.15rem; margin-bottom:1rem;">Local LLM & Vector Database Configuration</h3>
+      <div style="display:flex; flex-direction:column; gap:1rem; max-width:600px;">
+        <div class="form-group">
+          <label>Ollama Server Endpoint</label>
+          <input type="text" class="form-control" value="{{ system_settings.ollama_base_url }}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Configured LLM Model</label>
+          <input type="text" class="form-control" value="{{ system_settings.ollama_model }}" readonly>
+        </div>
+        <div class="form-group">
+          <label>RAG Retrieval Top-K Passages</label>
+          <input type="text" class="form-control" value="{{ system_settings.top_k }}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Local LLM Connection Status</label>
+          <div style="padding:0.75rem; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:0.85rem;">
+            <strong>Status:</strong> {{ ollama_health.status }}<br/>
+            <strong>Active Models:</strong> {{ ollama_health.available_models|join:", "|default:"No external Ollama instance detected. Deterministic local RAG pipeline is active." }}<br/>
+            <div style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+              To run Ollama locally with GPU acceleration:<br/>
+              <code>ollama serve</code><br/>
+              <code>ollama run {{ system_settings.ollama_model }}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'assistant/js/admin.js' %}"></script>
+{% endblock %}

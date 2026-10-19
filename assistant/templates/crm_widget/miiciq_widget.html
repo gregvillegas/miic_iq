@@ -1,0 +1,19 @@
+{% comment %}
+  MIICiQ — CRM Chatbot Widget Include Template
+  Usage in your Django CRM template (e.g. base.html):
+    {% include "crm_widget/miiciq_widget.html" %}
+  Optional variables you can pass:
+    {% include "crm_widget/miiciq_widget.html" with miiciq_url="http://127.0.0.1:8000" mode="redirect" %}
+{% endcomment %}
+
+<!-- MIICiQ Floating CRM Chatbot Widget -->
+<script 
+  src="{{ miiciq_url|default:'http://127.0.0.1:8000' }}/static/assistant/js/miiciq-widget.js"
+  data-miiciq-url="{{ miiciq_url|default:'http://127.0.0.1:8000' }}"
+  data-mode="{{ mode|default:'redirect' }}"
+  data-position="{{ position|default:'bottom-right' }}"
+  data-button-text="{{ button_text|default:'Ask MIICiQ' }}"
+  data-title="{{ title|default:'MIICiQ Sales & Policy Assistant' }}"
+  data-subtitle="{{ subtitle|default:'Instant SOPs & Approval Thresholds' }}"
+  defer>
+</script>

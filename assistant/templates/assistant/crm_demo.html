@@ -1,0 +1,271 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise CRM Portal — Sales Deals & Pipeline</title>
+  <meta name="description" content="Simulated enterprise CRM dashboard demonstrating the MIICiQ embeddable chatbot widget integration.">
+  <link rel="stylesheet" href="{% static 'assistant/css/styles.css' %}">
+  <style>
+    /* CRM Portal Custom Layout */
+    body {
+      background-color: #0f172a;
+      overflow-y: auto;
+    }
+    .crm-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 5rem;
+    }
+    .crm-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: #1e293b;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+    }
+    .crm-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .crm-logo-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      font-size: 16px;
+    }
+    .crm-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .crm-subtitle {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .crm-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .crm-stat-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .crm-stat-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .crm-stat-number {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-top: 0.25rem;
+    }
+    .crm-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .crm-code-box {
+      background: #090d16;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 0.75rem;
+      position: relative;
+    }
+    .crm-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .crm-table th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .crm-table td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      color: #cbd5e1;
+    }
+    .crm-table tr:hover td {
+      background: rgba(51, 65, 85, 0.4);
+    }
+    .stage-badge {
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }
+  </style>
+</head>
+<body>
+
+<div class="crm-wrapper">
+  <!-- Top CRM Navbar -->
+  <header class="crm-nav">
+    <div class="crm-brand">
+      <div class="crm-logo-box">CRM</div>
+      <div>
+        <div class="crm-title">Enterprise Commercial CRM</div>
+        <div class="crm-subtitle">Sales Operations & Account Management</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <a href="{% url 'assistant:chat' %}" class="btn-new-chat" style="padding:0.45rem 1rem; font-size:0.8rem; width:auto;">
+        Open Full MIICiQ App ↗
+      </a>
+    </div>
+  </header>
+
+  <!-- Integration Helper Banner -->
+  <div class="crm-card" style="border-left:4px solid var(--accent-cyan); background:rgba(6, 182, 212, 0.05);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h2 style="font-size:1.15rem; font-weight:700; color:#ffffff; margin-bottom:0.25rem;">
+          🤖 MIICiQ Chatbot Integration for Django CRM
+        </h2>
+        <p style="color:#94a3b8; font-size:0.85rem;">
+          The floating button in the bottom-right corner is the <strong>MIICiQ Chatbot Widget</strong>. 
+          When your CRM users ask questions about Sales Order procedures, discount approval thresholds, or company policies, it redirects them seamlessly to MIIC_iQ with the query pre-filled and answers streamed instantly!
+        </p>
+      </div>
+      <div>
+        <button type="button" class="btn-new-chat" style="width:auto; padding:0.4rem 0.8rem; font-size:0.75rem;" onclick="copyIntegrationCode()">
+          📋 Copy 1-Line Script
+        </button>
+      </div>
+    </div>
+
+    <div class="crm-code-box" id="integrationCodeBlock">
+&lt;!-- Add this single line before &lt;/body&gt; in your Django CRM base.html --&gt;
+&lt;script src="http://127.0.0.1:8000/static/assistant/js/miiciq-widget.js" 
+        data-miiciq-url="http://127.0.0.1:8000" 
+        data-mode="redirect" 
+        data-button-text="Ask MIICiQ" 
+        defer&gt;&lt;/script&gt;
+    </div>
+  </div>
+
+  <!-- Key Performance Metrics -->
+  <div class="crm-stats-grid">
+    <div class="crm-stat-box">
+      <div class="crm-stat-label">Active Deals in Pipeline</div>
+      <div class="crm-stat-number">$472,500</div>
+    </div>
+    <div class="crm-stat-box">
+      <div class="crm-stat-label">Pending SO Submissions</div>
+      <div class="crm-stat-number" style="color:var(--accent-cyan);">3 Orders</div>
+    </div>
+    <div class="crm-stat-box">
+      <div class="crm-stat-label">Manager Discount Approvals</div>
+      <div class="crm-stat-number" style="color:var(--accent-amber);">2 Pending</div>
+    </div>
+    <div class="crm-stat-box">
+      <div class="crm-stat-label">Q4 Win Rate</div>
+      <div class="crm-stat-number" style="color:var(--accent-emerald);">68.4%</div>
+    </div>
+  </div>
+
+  <!-- Active Deals Table -->
+  <div class="crm-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h3 style="font-size:1.05rem; font-weight:700;">Active Commercial Deals & Sales Orders</h3>
+      <span style="font-size:0.75rem; color:#94a3b8;">Click the floating MIICiQ button to verify approval rules for any deal</span>
+    </div>
+
+    <table class="crm-table">
+      <thead>
+        <tr>
+          <th>Client Account</th>
+          <th>Deal Value</th>
+          <th>Current Pipeline Stage</th>
+          <th>Account Exec</th>
+          <th>Target Date</th>
+          <th>Compliance / Policy Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for deal in deals %}
+          <tr>
+            <td><strong>{{ deal.client }}</strong></td>
+            <td><strong style="color:#ffffff;">{{ deal.value }}</strong></td>
+            <td><span class="stage-badge">{{ deal.stage }}</span></td>
+            <td>{{ deal.rep }}</td>
+            <td style="font-size:0.8rem; color:#94a3b8;">{{ deal.date }}</td>
+            <td>
+              <span style="font-size:0.75rem; color:var(--accent-cyan); cursor:pointer;" onclick="askMIICiQ('What is the approval threshold for {{ deal.stage }}?')">
+                🔍 Check rule in MIICiQ →
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MIICiQ Embeddable Chatbot Widget Script                                  -->
+<!-- This is the exact snippet you can paste into your Django CRM base.html  -->
+<!-- ======================================================================= -->
+<script 
+  src="{% static 'assistant/js/miiciq-widget.js' %}"
+  data-miiciq-url="http://127.0.0.1:8000"
+  data-mode="redirect"
+  data-position="bottom-right"
+  data-button-text="Ask MIICiQ"
+  data-title="MIICiQ Sales & Policy Assistant"
+  data-subtitle="Instant ERP SO-101 & Discount Rules"
+  defer>
+</script>
+
+<script>
+  function askMIICiQ(question) {
+    if (window.MIICiQ) {
+      window.MIICiQ.ask(question);
+    } else {
+      window.location.href = `http://127.0.0.1:8000/?prefill=${encodeURIComponent(question)}&autosend=1`;
+    }
+  }
+
+  function copyIntegrationCode() {
+    const code = document.getElementById('integrationCodeBlock').innerText.trim();
+    navigator.clipboard.writeText(code).then(() => {
+      alert('Integration code copied to clipboard! Paste it into your Django CRM base.html');
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,165 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MIICiQ — Internal Knowledge Assistant{% endblock %}</title>
+  <meta name="description" content="Secure, RAG-powered internal knowledge assistant for policies, sales order workflows, and enterprise documentation.">
+  <link rel="stylesheet" href="{% static 'assistant/css/styles.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% csrf_token %}
+  <div class="app-container">
+    <!-- Navigation Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="{% url 'assistant:chat' %}" class="brand-badge">
+          <div class="brand-logo">IQ</div>
+          <div>
+            <div class="brand-title">MIICiQ</div>
+            <div class="brand-tag">Internal AI</div>
+          </div>
+        </a>
+      </div>
+
+      <div class="sidebar-action-wrap">
+        <button id="btnNewChat" class="btn-new-chat" type="button">
+          <span>+</span> New Chat
+        </button>
+      </div>
+
+      <div class="sidebar-nav">
+        <div class="mode-toggle">
+          <a href="{% url 'assistant:chat' %}" class="mode-btn {% if request.resolver_match.url_name == 'chat' or request.resolver_match.url_name == 'chat_alias' %}active{% endif %}">
+            <span>💬</span> Chat Mode
+          </a>
+          <a href="{% url 'assistant:search' %}" class="mode-btn {% if request.resolver_match.url_name == 'search' %}active{% endif %}">
+            <span>🔍</span> Search Mode
+          </a>
+        </div>
+      </div>
+
+      <!-- History List -->
+      <div class="sidebar-history">
+        <div class="history-heading">Recent Inquiries</div>
+        <div id="historyList">
+          {% for s in sessions %}
+            <a href="{% url 'assistant:chat' %}?session_id={{ s.id }}" class="history-item {% if active_session and active_session.id == s.id %}active{% endif %}">
+              <span class="history-title" title="{{ s.title }}">{{ s.title }}</span>
+              <button type="button" class="history-del-btn" data-session-id="{{ s.id }}" title="Delete chat">✕</button>
+            </a>
+          {% empty %}
+            <div style="font-size:0.75rem; color:var(--text-muted); padding:0.5rem;">No recent chats</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- User Profile & Admin Links -->
+      <div class="sidebar-footer">
+        <div class="user-status-card">
+          <div class="user-info">
+            <div class="user-avatar">{{ profile.user.username|make_list|first|upper }}</div>
+            <div class="user-details">
+              <span class="user-name">{{ profile.user.username }}</span>
+              <span class="user-role-badge">{{ profile.get_role_display }} • {{ profile.department }}</span>
+            </div>
+          </div>
+          <button id="btnSwitchRole" class="btn-switch-role" type="button" title="Switch Role for Evaluation">Switch</button>
+        </div>
+
+        {% if profile.role == 'admin' or profile.role == 'manager' %}
+          <a href="{% url 'assistant:admin_dashboard' %}" class="admin-nav-link">
+            <span>⚙️</span> Knowledge Admin & Analytics
+          </a>
+        {% endif %}
+      </div>
+    </aside>
+
+    <!-- Main Working Area -->
+    <main class="main-content">
+      <!-- Top Navigation -->
+      <header class="top-nav">
+        <div class="top-nav-left">
+          <button id="mobileMenuBtn" class="mobile-menu-btn" type="button" aria-label="Toggle menu">☰</button>
+          <div class="active-chat-title">
+            {% block top_title %}Internal Knowledge Assistant{% endblock %}
+          </div>
+        </div>
+        <div class="top-nav-right">
+          <div class="system-status-pill" title="{{ ollama_health.status }}">
+            <span class="status-dot {% if ollama_health.connected %}online{% else %}offline{% endif %}"></span>
+            <span>
+              {% if ollama_health.connected %}
+                Ollama: {{ ollama_health.configured_model }}
+              {% else %}
+                Local Vector RAG Active
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Native Light-Dismiss Dialog for Source Citation Preview (closedby="any") -->
+  <dialog id="sourceModal" closedby="any" aria-labelledby="modalDocTitle">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <div>
+          <h2 id="modalDocTitle" class="dialog-title">Document Source</h2>
+          <span id="modalScoreBadge" class="score-badge" style="margin-top:0.25rem; display:inline-block;"></span>
+        </div>
+        <button type="button" class="btn-close-dialog" onclick="document.getElementById('sourceModal').close()">✕</button>
+      </div>
+      <div id="modalChunkBody" class="dialog-body">
+        <!-- Dynamic chunk text populated here -->
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-new-chat" style="width:auto; padding:0.4rem 1rem;" onclick="document.getElementById('sourceModal').close()">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Role Switcher Modal for Easy Evaluation -->
+  <dialog id="roleModal" closedby="any" aria-labelledby="roleModalTitle">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h2 id="roleModalTitle" class="dialog-title">Switch Active Role (RBAC Simulation)</h2>
+        <button type="button" class="btn-close-dialog" onclick="document.getElementById('roleModal').close()">✕</button>
+      </div>
+      <div class="dialog-body">
+        <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.85rem;">
+          Select a role to verify role-based document permissions and access control:
+        </p>
+        <div style="display:flex; flex-direction:column; gap:0.6rem;">
+          <button type="button" class="btn-select-role btn-new-chat" data-role="employee" style="text-align:left; justify-content:flex-start;">
+            <div>
+              <strong>👤 Employee</strong>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Access to general company policies, SOPs, and public documentation.</div>
+            </div>
+          </button>
+          <button type="button" class="btn-select-role btn-new-chat" data-role="manager" style="text-align:left; justify-content:flex-start;">
+            <div>
+              <strong>👔 Manager</strong>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Access to general docs + Manager-restricted approval thresholds and compensation.</div>
+            </div>
+          </button>
+          <button type="button" class="btn-select-role btn-new-chat" data-role="admin" style="text-align:left; justify-content:flex-start;">
+            <div>
+              <strong>🛡️ Administrator</strong>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Full access to all documents, document upload, vector index rebuild, and audit analytics.</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="{% static 'assistant/js/chat.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

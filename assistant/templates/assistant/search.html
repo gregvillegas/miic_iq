@@ -1,0 +1,89 @@
+{% extends 'assistant/base.html' %}
+{% load static %}
+
+{% block title %}MIICiQ — Semantic Document Search{% endblock %}
+
+{% block top_title %}Document Search Mode{% endblock %}
+
+{% block content %}
+<div class="search-container">
+  <div class="search-header-wrap">
+    <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.5rem;">Semantic & Keyword Search</h1>
+    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+      Search across all internal SOPs, policies, and procedural guides using dense vector similarity and BM25 hybrid ranking.
+    </p>
+
+    <form method="GET" action="{% url 'assistant:search' %}" class="search-form">
+      <div class="search-input-group">
+        <input type="text" name="q" value="{{ query }}" class="search-input" placeholder="Search keywords, SOP codes (e.g., SO-101), leave rules..." autofocus required>
+        <button type="submit" class="btn-new-chat" style="width:auto; padding:0.75rem 1.5rem;">
+          🔍 Search
+        </button>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div class="filter-pills-bar">
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">CATEGORY:</span>
+        {% for cat in categories %}
+          <a href="?q={{ query|urlencode }}&category={{ cat }}&department={{ department }}" class="filter-pill {% if category == cat %}active{% endif %}">
+            {{ cat }}
+          </a>
+        {% endfor %}
+      </div>
+    </form>
+  </div>
+
+  {% if query %}
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
+      Found <strong>{{ results|length }}</strong> relevant document passages for "<em>{{ query }}</em>"
+    </div>
+
+    <div class="search-results-list">
+      {% for r in results %}
+        <div class="search-result-card">
+          <div class="card-header-meta">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span class="card-doc-title">📄 {{ r.title }}</span>
+              <span class="citation-badge">Page {{ r.page_number }}</span>
+              <span class="citation-badge" style="background:rgba(99,102,241,0.15); color:var(--accent-indigo);">{{ r.category }}</span>
+            </div>
+            <span class="score-badge">Relevance: {{ r.score|floatformat:2 }}</span>
+          </div>
+
+          <div class="card-snippet">
+            {{ r.content }}
+          </div>
+
+          <div class="card-actions">
+            <span>Dept: {{ r.department }} • Version: {{ r.version }}</span>
+            <a href="{% url 'assistant:chat' %}?prefill={{ query|urlencode }}" class="citation-pill" style="font-weight:600;">
+              🤖 Ask MIICiQ about this passage →
+            </a>
+          </div>
+        </div>
+      {% empty %}
+        <div style="text-align:center; padding:3rem; background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-medium);">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">🔍</div>
+          <h3 style="font-size:1.1rem; margin-bottom:0.35rem;">No matching document passages found</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem;">
+            Try broadening your search keywords or upload additional documents in the Admin Panel.
+          </p>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <!-- Popular Searches / Guidance -->
+    <div style="margin-top:2rem; padding:2rem; background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-medium);">
+      <h3 style="font-size:1rem; margin-bottom:0.75rem;">Suggested Searches:</h3>
+      <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <a href="?q=Sales+Order+Process+SO-101" class="filter-pill">📦 Sales Order Process SO-101</a>
+        <a href="?q=Annual+Leave+Entitlement+Rollover" class="filter-pill">🌴 Annual Leave Entitlement & Rollover</a>
+        <a href="?q=Travel+Per+Diem+Meal+Allowances" class="filter-pill">✈️ Travel Per Diem Meal Allowances</a>
+        <a href="?q=Password+Length+and+2FA+Requirements" class="filter-pill">🔐 Password Length & 2FA Policy</a>
+        <a href="?q=Sales+Discount+Approval+Matrix" class="filter-pill">💰 Sales Discount Approval Matrix</a>
+        <a href="?q=Maternity+and+Paternity+Leave" class="filter-pill">👶 Maternity & Paternity Leave</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

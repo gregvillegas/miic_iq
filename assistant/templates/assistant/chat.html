@@ -1,0 +1,108 @@
+{% extends 'assistant/base.html' %}
+{% load static %}
+
+{% block title %}MIICiQ — Chat Assistant{% endblock %}
+
+{% block top_title %}
+  {% if active_session %}
+    {{ active_session.title }}
+  {% else %}
+    MIICiQ Knowledge Assistant
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<input type="hidden" id="activeSessionId" value="{% if active_session %}{{ active_session.id }}{% endif %}">
+
+<div class="chat-container" id="chatContainer">
+  <div class="messages-list" id="chatMessagesList">
+    {% if not messages %}
+      <!-- Empty State / Welcome Screen -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-icon">🤖</div>
+        <h1 class="welcome-title">Welcome to MIICiQ</h1>
+        <p class="welcome-subtitle">
+          Your private, local AI knowledge assistant. Ask questions about company policies, Sales Order workflows, expense procedures, or search indexed documents.
+        </p>
+
+        <div class="quick-prompts-grid">
+          <div class="prompt-card" data-prompt="How do I process a Sales Order in ERP? What are the step-by-step procedures?">
+            <span class="prompt-card-title">📦 Sales Order (SO-101) Process</span>
+            <span class="prompt-card-desc">Quotation, approval thresholds, warehouse pick lists, and invoicing.</span>
+          </div>
+
+          <div class="prompt-card" data-prompt="What is our annual leave entitlement and rollover policy?">
+            <span class="prompt-card-title">🌴 Annual Leave & PTO Policy</span>
+            <span class="prompt-card-desc">Working days per year, rollover limits, and medical leave terms.</span>
+          </div>
+
+          <div class="prompt-card" data-prompt="What are the daily travel per diem limits for meals and flights?">
+            <span class="prompt-card-title">✈️ Travel & Expense Limits</span>
+            <span class="prompt-card-desc">Flight tiers, hotel caps, breakfast/lunch/dinner per diem rates.</span>
+          </div>
+
+          <div class="prompt-card" data-prompt="What are the discount approval thresholds for sales deals?">
+            <span class="prompt-card-title">💰 Sales Discount Approval Matrix</span>
+            <span class="prompt-card-desc">Percentage ranges, VP/CFO approval levels, and payment terms.</span>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      {% for msg in messages %}
+        <div class="message-row {{ msg.sender }}">
+          <div class="message-bubble-wrap">
+            <div class="message-bubble">
+              {{ msg.content|linebreaksbr }}
+            </div>
+
+            {% if msg.sources_json %}
+              <div class="citations-wrap">
+                <div class="citations-header">
+                  <span>Verified Sources</span>
+                </div>
+                <div class="citations-list">
+                  {% for s in msg.sources_json %}
+                    <a href="#" class="citation-pill" data-title="{{ s.title }}" data-page="{{ s.page_number }}" data-score="{{ s.score }}" data-snippet="{{ s.snippet }}">
+                      📎 {{ s.title }} <span class="citation-badge">p.{{ s.page_number }}</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            {% if msg.sender == 'assistant' %}
+              <div class="message-actions">
+                <button type="button" class="action-btn btn-feedback {% if msg.feedback and msg.feedback.rating == 1 %}active-thumbs-up{% endif %}" data-message-id="{{ msg.id }}" data-rating="1" title="Helpful answer">
+                  👍 Helpful
+                </button>
+                <button type="button" class="action-btn btn-feedback {% if msg.feedback and msg.feedback.rating == -1 %}active-thumbs-down{% endif %}" data-message-id="{{ msg.id }}" data-rating="-1" title="Report issue">
+                  👎 Report issue
+                </button>
+                {% if msg.latency_ms %}
+                  <span class="latency-tag">{{ msg.latency_ms|divisibleby:1000|default:msg.latency_ms }} ms</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+          <div class="message-avatar {{ msg.sender }}">
+            {% if msg.sender == 'user' %}👤{% else %}🤖{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Input Bar -->
+<div class="chat-input-area">
+  <div class="input-box-container">
+    <textarea id="chatInput" class="chat-textarea" rows="1" placeholder="Ask about company policies, sales orders, or procedures..." autofocus></textarea>
+    <button id="sendBtn" class="btn-send" type="button" aria-label="Send message" disabled>
+      ➤
+    </button>
+  </div>
+  <div class="input-footer-note">
+    🔒 100% Private On-Premise RAG — Grounded strictly on internal documents. No external cloud API calls.
+  </div>
+</div>
+{% endblock %}
