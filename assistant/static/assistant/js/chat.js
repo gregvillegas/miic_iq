@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
   const activeSessionInput = document.getElementById('activeSessionId');
   const sourceModal = document.getElementById('sourceModal');
-  const roleModal = document.getElementById('roleModal');
+  const modalViewDocumentLink = document.getElementById('modalViewDocumentLink');
   const feedbackModal = document.getElementById('feedbackModal');
 
   // Modern Web Guidance: Setup light-dismiss fallback for all <dialog> elements
@@ -117,41 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Switch Role Button
-  const btnSwitchRole = document.getElementById('btnSwitchRole');
-  if (btnSwitchRole && roleModal) {
-    btnSwitchRole.addEventListener('click', () => {
-      roleModal.showModal();
-    });
-  }
-
-  // Role Switch Form
-  const roleButtons = document.querySelectorAll('.btn-select-role');
-  roleButtons.forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const role = btn.dataset.role;
-      try {
-        await fetch('/api/user/switch-role/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken(),
-          },
-          body: JSON.stringify({ role: role })
-        });
-        window.location.reload();
-      } catch (e) {
-        console.error(e);
-      }
-    });
-  });
-
   // Source Preview Links
   document.addEventListener('click', async (e) => {
     const citationPill = e.target.closest('.citation-pill');
-    if (citationPill && sourceModal) {
+    if (citationPill && citationPill.dataset.title && sourceModal) {
       e.preventDefault();
       const chunkId = citationPill.dataset.chunkId;
+      const documentId = citationPill.dataset.documentId;
       const title = citationPill.dataset.title || 'Document';
       const page = citationPill.dataset.page || '1';
       const score = citationPill.dataset.score || '';
@@ -159,6 +131,15 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modalDocTitle').textContent = `${title} (Page ${page})`;
       document.getElementById('modalScoreBadge').textContent = score ? `Relevance: ${Math.round(score * 100)}%` : '';
       const bodyEl = document.getElementById('modalChunkBody');
+      if (modalViewDocumentLink) {
+        if (documentId) {
+          modalViewDocumentLink.href = `/api/document/${encodeURIComponent(documentId)}/view/`;
+          modalViewDocumentLink.style.display = 'inline-flex';
+        } else {
+          modalViewDocumentLink.removeAttribute('href');
+          modalViewDocumentLink.style.display = 'none';
+        }
+      }
       bodyEl.innerHTML = '<p style="color:var(--text-muted)">Loading document snippet...</p>';
       sourceModal.showModal();
 
@@ -167,6 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const resp = await fetch(`/api/chunk/${encodeURIComponent(chunkId)}/`);
           if (resp.ok) {
             const data = await resp.json();
+            if (modalViewDocumentLink && data.document_id) {
+              modalViewDocumentLink.href = `/api/document/${encodeURIComponent(data.document_id)}/view/`;
+              modalViewDocumentLink.style.display = 'inline-flex';
+            }
             bodyEl.innerHTML = `<div style="white-space: pre-wrap; font-size:0.9rem; line-height:1.6;">${escapeHtml(data.content)}</div>`;
             return;
           }
@@ -296,6 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pill = document.createElement('a');
                     pill.className = 'citation-pill';
                     pill.href = '#';
+                    pill.dataset.chunkId = src.chunk_id || '';
+                    pill.dataset.documentId = src.document_id || '';
                     pill.dataset.title = src.title;
                     pill.dataset.page = src.page_number;
                     pill.dataset.score = src.score;

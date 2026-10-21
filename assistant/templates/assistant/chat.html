@@ -22,7 +22,7 @@
         <div class="welcome-icon">🤖</div>
         <h1 class="welcome-title">Welcome to MIICiQ</h1>
         <p class="welcome-subtitle">
-          Your private, local AI knowledge assistant. Ask questions about company policies, Sales Order workflows, expense procedures, or search indexed documents.
+          Your private, local AI knowledge assistant. Ask questions about company policies, Sales Order workflows, laptop specifications, memory and SSD compatibility, expense procedures, or search indexed documents.
         </p>
 
         <div class="quick-prompts-grid">
@@ -45,6 +45,11 @@
             <span class="prompt-card-title">💰 Sales Discount Approval Matrix</span>
             <span class="prompt-card-desc">Percentage ranges, VP/CFO approval levels, and payment terms.</span>
           </div>
+
+          <div class="prompt-card" data-prompt="Is this laptop model compatible with a 32GB DDR5 memory upgrade or a 2TB NVMe SSD? Please cite the datasheet or technical specifications.">
+            <span class="prompt-card-title">💻 Laptop Memory / SSD Compatibility</span>
+            <span class="prompt-card-desc">Use uploaded datasheets and engineering specs to answer upgrade and compatibility questions.</span>
+          </div>
         </div>
       </div>
     {% else %}
@@ -62,7 +67,7 @@
                 </div>
                 <div class="citations-list">
                   {% for s in msg.sources_json %}
-                    <a href="#" class="citation-pill" data-title="{{ s.title }}" data-page="{{ s.page_number }}" data-score="{{ s.score }}" data-snippet="{{ s.snippet }}">
+                    <a href="#" class="citation-pill" data-title="{{ s.title }}" data-page="{{ s.page_number }}" data-score="{{ s.score }}" data-snippet="{{ s.snippet }}" data-chunk-id="{{ s.chunk_id }}" data-document-id="{{ s.document_id }}">
                       📎 {{ s.title }} <span class="citation-badge">p.{{ s.page_number }}</span>
                     </a>
                   {% endfor %}
@@ -96,7 +101,7 @@
 <!-- Input Bar -->
 <div class="chat-input-area">
   <div class="input-box-container">
-    <textarea id="chatInput" class="chat-textarea" rows="1" placeholder="Ask about company policies, sales orders, or procedures..." autofocus></textarea>
+    <textarea id="chatInput" class="chat-textarea" rows="1" placeholder="Ask about policies, sales orders, laptop specs, memory, SSD compatibility, or procedures..." autofocus></textarea>
     <button id="sendBtn" class="btn-send" type="button" aria-label="Send message" disabled>
       ➤
     </button>

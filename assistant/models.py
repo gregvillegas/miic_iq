@@ -23,10 +23,22 @@ class Document(models.Model):
     CATEGORY_CHOICES = [
         ('Policy', 'Company Policy'),
         ('Sales Order Workflow', 'Sales Order Workflow'),
+        ('Product Specs & Compatibility', 'Product Specs & Compatibility'),
         ('HR', 'Human Resources'),
         ('IT', 'Information Technology & Security'),
         ('Finance', 'Finance & Expenses'),
         ('Other', 'Other Documentation'),
+    ]
+
+    DEPARTMENT_CHOICES = [
+        ('All', 'All Departments'),
+        ('Sales', 'Sales'),
+        ('Engineering', 'Engineering'),
+        ('HR', 'HR'),
+        ('IT', 'IT'),
+        ('Finance', 'Finance'),
+        ('Operations', 'Operations'),
+        ('General', 'General'),
     ]
 
     ACCESS_ROLE_CHOICES = [

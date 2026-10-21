@@ -280,6 +280,7 @@ class VectorStoreService:
 
             scored_results.append({
                 'chroma_id': cid,
+                'document_id': meta.get('document_id'),
                 'content': item['content'],
                 'metadata': meta,
                 'score': round(float(min(1.0, combined_score)), 4),

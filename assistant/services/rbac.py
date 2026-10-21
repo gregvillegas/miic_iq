@@ -40,3 +40,16 @@ def is_admin_or_manager(user: User) -> bool:
         return True
     profile = get_or_create_user_profile(user)
     return profile.role in ['admin', 'manager']
+
+
+def can_manage_knowledge_base(user: User) -> bool:
+    """
+    Allows knowledge base maintenance for administrators, managers,
+    and Engineering users who curate product specs and compatibility references.
+    """
+    if is_admin_or_manager(user):
+        return True
+    if not user.is_authenticated:
+        return False
+    profile = get_or_create_user_profile(user)
+    return profile.department.strip().lower() == 'engineering'

@@ -84,8 +84,32 @@ class VectorStoreAndRAGTests(TestCase):
 class ChatViewsAndAPITests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user(username='eval_user')
+        self.user = User.objects.create_user(username='eval_user', password='testpass123')
         UserProfile.objects.create(user=self.user, role='employee', department='General')
+        self.client.force_login(self.user)
+        uploaded = SimpleUploadedFile(
+            "compatibility_reference.md",
+            b"# Laptop Compatibility\nSupports 32GB DDR5 and 2TB NVMe SSD.\n",
+            content_type="text/markdown"
+        )
+        self.doc = Document.objects.create(
+            title="Laptop Compatibility Reference",
+            file=uploaded,
+            file_type="md",
+            category="Product Specs & Compatibility",
+            department="Engineering",
+            version="v1.0",
+            access_role="all"
+        )
+        self.chunk = DocumentChunk.objects.create(
+            document=self.doc,
+            chunk_index=0,
+            content="Supports 32GB DDR5 memory and 2TB NVMe SSD.",
+            token_count=9,
+            page_number=1,
+            metadata_json={"document_id": str(self.doc.id)},
+            chroma_id=f"{self.doc.id}_0"
+        )
 
     def test_chat_page_render(self):
         response = self.client.get('/')
@@ -93,16 +117,31 @@ class ChatViewsAndAPITests(TestCase):
         self.assertContains(response, "MIICiQ")
         self.assertContains(response, "Chat Mode")
         self.assertContains(response, "Search Mode")
+        self.assertContains(response, "Laptop Memory / SSD Compatibility")
 
     def test_search_page_render(self):
         response = self.client.get('/search/?q=Sales')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Semantic & Keyword Search")
+        self.assertContains(response, "Product Specs &amp; Compatibility")
+        self.assertContains(response, "Engineering")
 
     def test_admin_dashboard_render(self):
+        self.user.profile.role = 'employee'
+        self.user.profile.department = 'Engineering'
+        self.user.profile.save()
         response = self.client.get('/admin-dashboard/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Knowledge Administration & Query Analytics")
+        self.assertContains(response, "Product Specs &amp; Compatibility")
+        self.assertContains(response, "Engineering")
+
+    def test_engineering_user_can_access_upload_endpoint(self):
+        self.user.profile.role = 'employee'
+        self.user.profile.department = 'Engineering'
+        self.user.profile.save()
+        response = self.client.post('/api/admin/upload/')
+        self.assertEqual(response.status_code, 400)
 
     def test_new_session_api(self):
         response = self.client.get('/api/chat/new/')
@@ -118,3 +157,38 @@ class ChatViewsAndAPITests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'text/event-stream')
+
+    def test_login_required_redirect_for_anonymous_user(self):
+        self.client.logout()
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+
+    def test_document_category_choices_include_product_specs(self):
+        category_values = [value for value, _ in Document.CATEGORY_CHOICES]
+        department_values = [value for value, _ in Document.DEPARTMENT_CHOICES]
+        self.assertIn('Product Specs & Compatibility', category_values)
+        self.assertIn('Engineering', department_values)
+
+    def test_user_can_view_allowed_source_document(self):
+        response = self.client.get(f'/api/document/{self.doc.id}/view/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('inline;', response['Content-Disposition'])
+
+    def test_chunk_preview_includes_document_id(self):
+        response = self.client.get(f'/api/chunk/{self.chunk.chroma_id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['document_id'], str(self.doc.id))
+
+    def test_user_cannot_view_restricted_source_document(self):
+        restricted = Document.objects.create(
+            title="Restricted Compatibility Notes",
+            file=SimpleUploadedFile("restricted.md", b"restricted", content_type="text/markdown"),
+            file_type="md",
+            category="Product Specs & Compatibility",
+            department="Engineering",
+            version="v1.0",
+            access_role="manager_plus"
+        )
+        response = self.client.get(f'/api/document/{restricted.id}/view/')
+        self.assertEqual(response.status_code, 403)

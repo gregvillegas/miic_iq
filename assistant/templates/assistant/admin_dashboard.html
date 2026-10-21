@@ -46,7 +46,7 @@
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <div>
           <h2 style="font-size:1.15rem; font-weight:700;">Upload & Index Company Document</h2>
-          <p style="color:var(--text-muted); font-size:0.8rem;">Supported formats: PDF, DOCX, TXT, MD, XLSX, CSV. Chunked automatically (500-1000 tokens) with hybrid vector embeddings.</p>
+          <p style="color:var(--text-muted); font-size:0.8rem;">Supported formats: PDF, DOCX, TXT, MD, XLSX, CSV. Upload laptop datasheets, spec sheets, and engineering references so sales can answer memory and SSD compatibility questions with citations.</p>
         </div>
         <button id="btnRebuildIndex" class="btn-new-chat" style="width:auto; padding:0.5rem 1rem; border-color:var(--accent-cyan); color:var(--accent-cyan);">
           🔄 Rebuild Vector Index
@@ -74,7 +74,11 @@
           </div>
           <div class="form-group">
             <label for="docDept">Department</label>
-            <input type="text" id="docDept" name="department" class="form-control" placeholder="All / HR / Sales / IT" value="All">
+            <select id="docDept" name="department" class="form-control">
+              {% for val, label in departments %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div class="form-group">
             <label for="docVersion">Version</label>
@@ -187,7 +191,7 @@
       <div class="upload-card">
         <h3 style="font-size:1rem; margin-bottom:0.75rem;">⚠️ Low Confidence / Unanswered Queries</h3>
         <p style="color:var(--text-muted); font-size:0.75rem; margin-bottom:0.75rem;">
-          Inquiries where similarity score was below confidence threshold. Use these to identify missing company policies.
+          Inquiries where similarity score was below confidence threshold. Use these to identify missing policies, laptop datasheets, engineering specs, and other knowledge gaps.
         </p>
         <div class="data-table-wrap">
           <table class="data-table">

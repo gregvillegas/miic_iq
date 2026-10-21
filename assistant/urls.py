@@ -4,6 +4,10 @@ from assistant import views
 app_name = 'assistant'
 
 urlpatterns = [
+    # Authentication
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+
     # UI Pages
     path('', views.chat_view, name='chat'),
     path('chat/', views.chat_view, name='chat_alias'),
@@ -18,6 +22,7 @@ urlpatterns = [
     path('api/chat/session/<uuid:session_id>/delete/', views.delete_session_api, name='api_delete_session'),
     path('api/feedback/', views.feedback_api, name='api_feedback'),
     path('api/chunk/<str:chunk_id>/', views.get_chunk_preview_api, name='api_chunk_preview'),
+    path('api/document/<uuid:doc_id>/view/', views.view_document_api, name='api_view_document'),
 
     # Admin Management APIs
     path('api/admin/upload/', views.upload_document_api, name='api_upload_document'),
@@ -25,7 +30,6 @@ urlpatterns = [
     path('api/admin/rebuild-index/', views.rebuild_index_api, name='api_rebuild_index'),
     path('api/admin/delete/<uuid:doc_id>/', views.delete_document_api, name='api_delete_document'),
 
-    # System & Role Helpers
+    # System
     path('api/system/health/', views.system_health_api, name='api_system_health'),
-    path('api/user/switch-role/', views.switch_role_api, name='api_switch_role'),
 ]

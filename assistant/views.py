@@ -1,49 +1,77 @@
 import json
-import uuid
+import mimetypes
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse, StreamingHttpResponse, HttpResponseForbidden
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.models import User
-from django.contrib.auth import login
+from django.http import FileResponse, JsonResponse, StreamingHttpResponse
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Avg, Q
 from django.conf import settings
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from assistant.models import (
     Document, DocumentChunk, ChatSession, ChatMessage,
-    Feedback, QueryAuditLog, SystemConfig, UserProfile
+    Feedback, QueryAuditLog, SystemConfig
 )
 from assistant.services.vector_store import VectorStoreService
 from assistant.services.llm_service import LocalLLMService
 from assistant.services.ingestion import ingest_document, rebuild_vector_index
-from assistant.services.rbac import get_or_create_user_profile, get_allowed_access_roles, is_admin_or_manager
+from assistant.services.rbac import (
+    can_manage_knowledge_base,
+    get_or_create_user_profile,
+    get_allowed_access_roles,
+)
 
 
-def _get_or_create_demo_user(request):
-    """
-    Ensures a valid user session is active (SSO emulation or demo user).
-    Supports dev header `X-Remote-User` or session-persisted demo user.
-    """
+def _get_user_profile(request):
+    """Returns the authenticated user and their RBAC profile."""
+    profile = get_or_create_user_profile(request.user)
+    return request.user, profile
+
+
+def _user_can_access_document(user, document: Document) -> bool:
+    """Checks whether the current user can open the source document."""
+    return document.access_role in get_allowed_access_roles(user)
+
+
+def login_view(request):
+    """Sign-in page. Authenticates users against Django's auth backend."""
     if request.user.is_authenticated:
-        profile = get_or_create_user_profile(request.user)
-        return request.user, profile
+        return redirect('assistant:chat')
 
-    # Check session role
-    role = request.session.get('active_role', 'admin')  # default to admin for seamless evaluation
-    username = request.session.get('active_username', f"evaluator_{role}")
-    
-    user, _ = User.objects.get_or_create(username=username, defaults={'first_name': 'Company', 'last_name': 'Employee'})
-    profile, _ = UserProfile.objects.get_or_create(user=user, defaults={'role': role, 'department': 'Operations'})
-    profile.role = role
-    profile.save()
-    
-    # Log in user without password for demo intranet access
-    login(request, user)
-    return user, profile
+    error = None
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None and user.is_active:
+            login(request, user)
+            get_or_create_user_profile(user)
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(next_url)
+            return redirect(settings.LOGIN_REDIRECT_URL)
+
+        error = 'Invalid username or password. Please try again.'
+
+    return render(request, 'assistant/login.html', {'error': error, 'next': next_url})
 
 
+def logout_view(request):
+    """Ends the current session and returns to the login page."""
+    logout(request)
+    return redirect('assistant:login')
+
+
+@login_required
 def chat_view(request):
     """Main ChatGPT-style dashboard view."""
-    user, profile = _get_or_create_demo_user(request)
+    user, profile = _get_user_profile(request)
     sessions = ChatSession.objects.filter(user=user).order_by('-updated_at')[:30]
     
     # Active session or default
@@ -60,6 +88,7 @@ def chat_view(request):
     doc_count = Document.objects.filter(status='indexed').count()
 
     context = {
+        'can_manage_knowledge_base': can_manage_knowledge_base(user),
         'profile': profile,
         'sessions': sessions,
         'active_session': active_session,
@@ -71,9 +100,10 @@ def chat_view(request):
     return render(request, 'assistant/chat.html', context)
 
 
+@login_required
 def search_view(request):
     """Semantic & Keyword document snippet search view."""
-    user, profile = _get_or_create_demo_user(request)
+    user, profile = _get_user_profile(request)
     query = request.GET.get('q', '').strip()
     category = request.GET.get('category', 'All')
     department = request.GET.get('department', 'All')
@@ -104,20 +134,26 @@ def search_view(request):
         )
 
     context = {
+        'can_manage_knowledge_base': can_manage_knowledge_base(user),
         'profile': profile,
         'query': query,
         'category': category,
         'department': department,
         'results': results,
         'categories': ['All'] + [c[0] for c in Document.CATEGORY_CHOICES],
-        'departments': ['All', 'Sales', 'HR', 'IT', 'Finance', 'Operations', 'General'],
+        'departments': [d[0] for d in Document.DEPARTMENT_CHOICES],
     }
     return render(request, 'assistant/search.html', context)
 
 
+@login_required
 def admin_dashboard_view(request):
     """Admin and Knowledge Manager dashboard view."""
-    user, profile = _get_or_create_demo_user(request)
+    user, profile = _get_user_profile(request)
+
+    # Only administrators and managers may access knowledge administration.
+    if not can_manage_knowledge_base(user):
+        return redirect('assistant:chat')
     
     # Metrics
     total_docs = Document.objects.count()
@@ -157,7 +193,7 @@ def admin_dashboard_view(request):
 
     context = {
         'profile': profile,
-        'is_admin': profile.role in ['admin', 'manager'],
+        'can_manage_knowledge_base': can_manage_knowledge_base(user),
         'total_docs': total_docs,
         'indexed_docs': indexed_docs,
         'total_chunks': total_chunks,
@@ -171,12 +207,14 @@ def admin_dashboard_view(request):
         'ollama_health': ollama_health,
         'system_settings': system_settings,
         'categories': Document.CATEGORY_CHOICES,
+        'departments': Document.DEPARTMENT_CHOICES,
         'access_roles': Document.ACCESS_ROLE_CHOICES,
     }
     return render(request, 'assistant/admin_dashboard.html', context)
 
 
 # API Endpoints
+@login_required
 def stream_chat_api(request):
     """
     Server-Sent Events (SSE) streaming chat endpoint.
@@ -192,7 +230,7 @@ def stream_chat_api(request):
 
     query = data.get('message', '').strip()
     session_id = data.get('session_id')
-    user, profile = _get_or_create_demo_user(request)
+    user, profile = _get_user_profile(request)
 
     if not query:
         return JsonResponse({'error': 'Message content cannot be empty'}, status=400)
@@ -286,9 +324,10 @@ def stream_chat_api(request):
     return response
 
 
+@login_required
 def get_session_messages_api(request, session_id):
     """Retrieves all messages and citations for a chat session."""
-    user, _ = _get_or_create_demo_user(request)
+    user, _ = _get_user_profile(request)
     session = get_object_or_404(ChatSession, id=session_id, user=user)
     messages_data = []
 
@@ -311,9 +350,10 @@ def get_session_messages_api(request, session_id):
     })
 
 
+@login_required
 def create_new_session_api(request):
     """Creates a new empty chat session."""
-    user, _ = _get_or_create_demo_user(request)
+    user, _ = _get_user_profile(request)
     session = ChatSession.objects.create(user=user, title="New Conversation")
     return JsonResponse({
         'session_id': str(session.id),
@@ -321,14 +361,16 @@ def create_new_session_api(request):
     })
 
 
+@login_required
 def delete_session_api(request, session_id):
     """Deletes a chat session."""
-    user, _ = _get_or_create_demo_user(request)
+    user, _ = _get_user_profile(request)
     session = get_object_or_404(ChatSession, id=session_id, user=user)
     session.delete()
     return JsonResponse({'status': 'deleted'})
 
 
+@login_required
 def feedback_api(request):
     """Records thumbs up/down and feedback comments for continuous RAG improvement."""
     if request.method != 'POST':
@@ -354,11 +396,15 @@ def feedback_api(request):
     return JsonResponse({'status': 'success', 'rating': feedback.rating})
 
 
+@login_required
 def get_chunk_preview_api(request, chunk_id):
     """Returns the full text and metadata for a specific document chunk."""
     chunk = get_object_or_404(DocumentChunk.objects.select_related('document'), chroma_id=chunk_id)
+    if not _user_can_access_document(request.user, chunk.document):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
     return JsonResponse({
         'chroma_id': chunk.chroma_id,
+        'document_id': str(chunk.document_id),
         'title': chunk.document.title,
         'category': chunk.document.category,
         'department': chunk.document.department,
@@ -370,11 +416,28 @@ def get_chunk_preview_api(request, chunk_id):
     })
 
 
+@login_required
+def view_document_api(request, doc_id):
+    """Streams a source document inline when the current user is allowed to access it."""
+    document = get_object_or_404(Document, id=doc_id)
+    if not _user_can_access_document(request.user, document):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    content_type, _ = mimetypes.guess_type(document.file.name)
+    response = FileResponse(
+        document.file.open('rb'),
+        content_type=content_type or 'application/octet-stream'
+    )
+    response['Content-Disposition'] = f'inline; filename="{document.file.name.split("/")[-1]}"'
+    return response
+
+
+@login_required
 def upload_document_api(request):
     """Uploads and triggers automatic chunking and indexing."""
-    user, profile = _get_or_create_demo_user(request)
-    if not is_admin_or_manager(user):
-        return JsonResponse({'error': 'Unauthorized: Admin or Manager role required'}, status=403)
+    user, profile = _get_user_profile(request)
+    if not can_manage_knowledge_base(user):
+        return JsonResponse({'error': 'Unauthorized: knowledge manager access required'}, status=403)
 
     if request.method != 'POST' or 'file' not in request.FILES:
         return JsonResponse({'error': 'File is required'}, status=400)
@@ -422,10 +485,11 @@ def upload_document_api(request):
     })
 
 
+@login_required
 def reindex_document_api(request, doc_id):
     """Re-indexes an existing document."""
-    user, _ = _get_or_create_demo_user(request)
-    if not is_admin_or_manager(user):
+    user, _ = _get_user_profile(request)
+    if not can_manage_knowledge_base(user):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
 
     doc = get_object_or_404(Document, id=doc_id)
@@ -433,20 +497,22 @@ def reindex_document_api(request, doc_id):
     return JsonResponse({'status': 'success' if success else 'failed', 'message': message, 'chunks': doc.chunk_count})
 
 
+@login_required
 def rebuild_index_api(request):
     """Rebuilds the entire Chroma vector store and BM25 index."""
-    user, _ = _get_or_create_demo_user(request)
-    if not is_admin_or_manager(user):
+    user, _ = _get_user_profile(request)
+    if not can_manage_knowledge_base(user):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
 
     stats = rebuild_vector_index()
     return JsonResponse({'status': 'success', 'stats': stats})
 
 
+@login_required
 def delete_document_api(request, doc_id):
     """Deletes a document and purges its chunks from ChromaDB."""
-    user, _ = _get_or_create_demo_user(request)
-    if not is_admin_or_manager(user):
+    user, _ = _get_user_profile(request)
+    if not can_manage_knowledge_base(user):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
 
     doc = get_object_or_404(Document, id=doc_id)
@@ -456,24 +522,7 @@ def delete_document_api(request, doc_id):
     return JsonResponse({'status': 'deleted'})
 
 
-def switch_role_api(request):
-    """Demo helper: switch current user role (employee / manager / admin)."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
-    data = json.loads(request.body.decode('utf-8'))
-    new_role = data.get('role', 'employee')
-    if new_role not in ['employee', 'manager', 'admin']:
-        return JsonResponse({'error': 'Invalid role'}, status=400)
-
-    request.session['active_role'] = new_role
-    user, profile = _get_or_create_demo_user(request)
-    profile.role = new_role
-    profile.save()
-
-    return JsonResponse({'status': 'success', 'role': new_role})
-
-
+@login_required
 def system_health_api(request):
     """Live Ollama connection and index health status check."""
     health = LocalLLMService.check_health()
@@ -482,6 +531,7 @@ def system_health_api(request):
     return JsonResponse(health)
 
 
+@login_required
 def crm_demo_view(request):
     """
     Interactive Django CRM Portal Mock showcasing the embeddable MIICiQ chatbot widget.
@@ -523,4 +573,3 @@ def crm_demo_view(request):
         },
     ]
     return render(request, 'assistant/crm_demo.html', {'deals': deals})
-

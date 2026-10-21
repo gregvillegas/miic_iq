@@ -10,12 +10,12 @@
   <div class="search-header-wrap">
     <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.5rem;">Semantic & Keyword Search</h1>
     <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
-      Search across all internal SOPs, policies, and procedural guides using dense vector similarity and BM25 hybrid ranking.
+      Search across internal SOPs, policies, laptop datasheets, engineering specifications, and procedural guides using dense vector similarity and BM25 hybrid ranking.
     </p>
 
     <form method="GET" action="{% url 'assistant:search' %}" class="search-form">
       <div class="search-input-group">
-        <input type="text" name="q" value="{{ query }}" class="search-input" placeholder="Search keywords, SOP codes (e.g., SO-101), leave rules..." autofocus required>
+        <input type="text" name="q" value="{{ query }}" class="search-input" placeholder="Search keywords, laptop model, RAM slots, NVMe SSD, SOP codes..." autofocus required>
         <button type="submit" class="btn-new-chat" style="width:auto; padding:0.75rem 1.5rem;">
           🔍 Search
         </button>
@@ -27,6 +27,15 @@
         {% for cat in categories %}
           <a href="?q={{ query|urlencode }}&category={{ cat }}&department={{ department }}" class="filter-pill {% if category == cat %}active{% endif %}">
             {{ cat }}
+          </a>
+        {% endfor %}
+      </div>
+
+      <div class="filter-pills-bar">
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">DEPARTMENT:</span>
+        {% for dept in departments %}
+          <a href="?q={{ query|urlencode }}&category={{ category }}&department={{ dept }}" class="filter-pill {% if department == dept %}active{% endif %}">
+            {{ dept }}
           </a>
         {% endfor %}
       </div>
@@ -56,9 +65,16 @@
 
           <div class="card-actions">
             <span>Dept: {{ r.department }} • Version: {{ r.version }}</span>
-            <a href="{% url 'assistant:chat' %}?prefill={{ query|urlencode }}" class="citation-pill" style="font-weight:600;">
-              🤖 Ask MIICiQ about this passage →
-            </a>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              {% if r.document_id %}
+                <a href="{% url 'assistant:api_view_document' r.document_id %}" target="_blank" rel="noopener" class="citation-pill" style="font-weight:600;">
+                  📄 View document
+                </a>
+              {% endif %}
+              <a href="{% url 'assistant:chat' %}?prefill={{ query|urlencode }}" class="citation-pill" style="font-weight:600;">
+                🤖 Ask MIICiQ about this passage →
+              </a>
+            </div>
           </div>
         </div>
       {% empty %}
@@ -82,6 +98,7 @@
         <a href="?q=Password+Length+and+2FA+Requirements" class="filter-pill">🔐 Password Length & 2FA Policy</a>
         <a href="?q=Sales+Discount+Approval+Matrix" class="filter-pill">💰 Sales Discount Approval Matrix</a>
         <a href="?q=Maternity+and+Paternity+Leave" class="filter-pill">👶 Maternity & Paternity Leave</a>
+        <a href="?q=Laptop+memory+and+SSD+compatibility" class="filter-pill">💻 Laptop Memory & SSD Compatibility</a>
       </div>
     </div>
   {% endif %}

@@ -66,10 +66,10 @@
               <span class="user-role-badge">{{ profile.get_role_display }} • {{ profile.department }}</span>
             </div>
           </div>
-          <button id="btnSwitchRole" class="btn-switch-role" type="button" title="Switch Role for Evaluation">Switch</button>
+          <a href="{% url 'assistant:logout' %}" class="btn-switch-role" title="Sign out">Sign Out</a>
         </div>
 
-        {% if profile.role == 'admin' or profile.role == 'manager' %}
+        {% if can_manage_knowledge_base %}
           <a href="{% url 'assistant:admin_dashboard' %}" class="admin-nav-link">
             <span>⚙️</span> Knowledge Admin & Analytics
           </a>
@@ -119,42 +119,10 @@
         <!-- Dynamic chunk text populated here -->
       </div>
       <div class="dialog-footer">
+        <a id="modalViewDocumentLink" href="#" target="_blank" rel="noopener" class="citation-pill" style="display:none; font-weight:600;">
+          View Document
+        </a>
         <button type="button" class="btn-new-chat" style="width:auto; padding:0.4rem 1rem;" onclick="document.getElementById('sourceModal').close()">Done</button>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- Role Switcher Modal for Easy Evaluation -->
-  <dialog id="roleModal" closedby="any" aria-labelledby="roleModalTitle">
-    <div class="dialog-content">
-      <div class="dialog-header">
-        <h2 id="roleModalTitle" class="dialog-title">Switch Active Role (RBAC Simulation)</h2>
-        <button type="button" class="btn-close-dialog" onclick="document.getElementById('roleModal').close()">✕</button>
-      </div>
-      <div class="dialog-body">
-        <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.85rem;">
-          Select a role to verify role-based document permissions and access control:
-        </p>
-        <div style="display:flex; flex-direction:column; gap:0.6rem;">
-          <button type="button" class="btn-select-role btn-new-chat" data-role="employee" style="text-align:left; justify-content:flex-start;">
-            <div>
-              <strong>👤 Employee</strong>
-              <div style="font-size:0.75rem; color:var(--text-muted);">Access to general company policies, SOPs, and public documentation.</div>
-            </div>
-          </button>
-          <button type="button" class="btn-select-role btn-new-chat" data-role="manager" style="text-align:left; justify-content:flex-start;">
-            <div>
-              <strong>👔 Manager</strong>
-              <div style="font-size:0.75rem; color:var(--text-muted);">Access to general docs + Manager-restricted approval thresholds and compensation.</div>
-            </div>
-          </button>
-          <button type="button" class="btn-select-role btn-new-chat" data-role="admin" style="text-align:left; justify-content:flex-start;">
-            <div>
-              <strong>🛡️ Administrator</strong>
-              <div style="font-size:0.75rem; color:var(--text-muted);">Full access to all documents, document upload, vector index rebuild, and audit analytics.</div>
-            </div>
-          </button>
-        </div>
       </div>
     </div>
   </dialog>

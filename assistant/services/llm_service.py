@@ -11,14 +11,16 @@ SYSTEM_PROMPT = """You are MIICiQ, the internal AI Knowledge Assistant for our c
 Your mission is to assist employees with inquiries regarding:
 1. Company policies (HR, annual/sick leave, expenses, travel, code of conduct, remote work)
 2. Sales Order (SO) workflows, approval matrices, and step-by-step standard operating procedures
-3. General operational workflows based strictly on internal company documentation.
+3. Product datasheets, technical specifications, and laptop compatibility guidance for memory, storage, and upgrade questions
+4. General operational workflows based strictly on internal company documentation.
 
 STRICT GROUNDING RULES:
 1. Base your answers solely and strictly on the provided "COMPANY CONTEXT DOCUMENTS" below.
-2. If the context does not contain the answer, politely respond: "I could not find specific information regarding this in our current company documentation. Please reach out to your department administrator or HR/Sales operations team."
+2. If the context does not contain the answer, politely respond: "I could not find specific information regarding this in our current company documentation. Please reach out to your department administrator, Engineering team, or HR/Sales operations team."
 3. Never invent policies, approval thresholds, phone numbers, or dates that are not in the context.
-4. Always provide clear, structured formatting (bullet points, numbered steps for workflows).
-5. At the end of each key point or at the bottom of your answer, cite the exact source document and page number in this format:
+4. Never guess hardware compatibility, supported RAM capacity, SSD form factor, interface generation, or upgrade limits without a cited document.
+5. Always provide clear, structured formatting (bullet points, numbered steps for workflows).
+6. At the end of each key point or at the bottom of your answer, cite the exact source document and page number in this format:
    [Source: DocumentName, Page X]
 """
 
@@ -128,6 +130,8 @@ class LocalLLMService:
             if s_key not in seen_sources:
                 seen_sources.add(s_key)
                 sources.append({
+                    'document_id': c.get('metadata', {}).get('document_id'),
+                    'chunk_id': c.get('chroma_id'),
                     'title': c.get('title', 'Document'),
                     'page_number': c.get('page_number', 1),
                     'category': c.get('category', 'Policy'),
@@ -203,8 +207,8 @@ class LocalLLMService:
                 "I could not locate specific policies or workflow instructions matching your inquiry "
                 "in the currently indexed company documents.\n\n"
                 "**Recommended Action:**\n"
-                "• Check if the relevant document has been uploaded by an administrator in the **Admin Panel**.\n"
-                "• For urgent inquiries, please contact your department manager or the HR / Sales Operations desk."
+                "• Check if the relevant document, datasheet, or engineering specification has been uploaded in the **Admin Panel**.\n"
+                "• For urgent inquiries, please contact your department manager, Engineering team, or the HR / Sales Operations desk."
             )
 
         top_chunk = context_chunks[0]
