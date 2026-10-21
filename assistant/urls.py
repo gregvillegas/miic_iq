@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/chat/session/<uuid:session_id>/delete/', views.delete_session_api, name='api_delete_session'),
     path('api/feedback/', views.feedback_api, name='api_feedback'),
     path('api/chunk/<str:chunk_id>/', views.get_chunk_preview_api, name='api_chunk_preview'),
+    path('api/source/resolve/', views.resolve_source_api, name='api_resolve_source'),
     path('api/document/<uuid:doc_id>/view/', views.view_document_api, name='api_view_document'),
 
     # Admin Management APIs

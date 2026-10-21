@@ -417,6 +417,43 @@ def get_chunk_preview_api(request, chunk_id):
 
 
 @login_required
+def resolve_source_api(request):
+    """Resolves legacy source citations to a current chunk/document pair."""
+    title = request.GET.get('title', '').strip()
+    page = request.GET.get('page', '').strip()
+    if not title:
+        return JsonResponse({'error': 'Title is required'}, status=400)
+
+    allowed_roles = get_allowed_access_roles(request.user)
+    chunks = DocumentChunk.objects.select_related('document').filter(
+        document__title=title,
+        document__access_role__in=allowed_roles,
+    )
+
+    page_number = None
+    if page.isdigit():
+        page_number = int(page)
+        page_matches = chunks.filter(page_number=page_number).order_by('-document__updated_at', 'chunk_index')
+        chunk = page_matches.first()
+    else:
+        chunk = None
+
+    if chunk is None:
+        chunk = chunks.order_by('-document__updated_at', 'page_number', 'chunk_index').first()
+
+    if chunk is None:
+        return JsonResponse({'error': 'Source not found'}, status=404)
+
+    return JsonResponse({
+        'chunk_id': chunk.chroma_id,
+        'document_id': str(chunk.document_id),
+        'title': chunk.document.title,
+        'page_number': chunk.page_number,
+        'content': chunk.content,
+    })
+
+
+@login_required
 def view_document_api(request, doc_id):
     """Streams a source document inline when the current user is allowed to access it."""
     document = get_object_or_404(Document, id=doc_id)

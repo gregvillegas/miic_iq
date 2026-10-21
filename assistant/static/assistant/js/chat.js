@@ -159,6 +159,27 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error(err);
         }
       }
+
+      if (!chunkId) {
+        try {
+          const params = new URLSearchParams({ title, page });
+          const resp = await fetch(`/api/source/resolve/?${params.toString()}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (modalViewDocumentLink && data.document_id) {
+              modalViewDocumentLink.href = `/api/document/${encodeURIComponent(data.document_id)}/view/`;
+              modalViewDocumentLink.style.display = 'inline-flex';
+            }
+            if (data.content) {
+              bodyEl.innerHTML = `<div style="white-space: pre-wrap; font-size:0.9rem; line-height:1.6;">${escapeHtml(data.content)}</div>`;
+              return;
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
       // Fallback to embedded snippet
       const snippet = citationPill.dataset.snippet || 'Snippet not available';
       bodyEl.innerHTML = `<div style="white-space: pre-wrap; font-size:0.9rem; line-height:1.6;">${escapeHtml(snippet)}</div>`;

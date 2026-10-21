@@ -175,6 +175,15 @@ class ChatViewsAndAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('inline;', response['Content-Disposition'])
 
+    def test_legacy_source_can_be_resolved_by_title_and_page(self):
+        response = self.client.get(
+            f'/api/source/resolve/?title={self.doc.title.replace(" ", "+")}&page=1'
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['document_id'], str(self.doc.id))
+        self.assertEqual(payload['chunk_id'], self.chunk.chroma_id)
+
     def test_chunk_preview_includes_document_id(self):
         response = self.client.get(f'/api/chunk/{self.chunk.chroma_id}/')
         self.assertEqual(response.status_code, 200)
