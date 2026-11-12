@@ -19,16 +19,41 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-8uxz9kx3z7f2^!z9b43t4w@kibosy%h8yy&mz-00gqdra%63k-'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+import os  # noqa: E402
+from django.core.exceptions import ImproperlyConfigured  # noqa: E402
 
 
-import os
+def _env_bool(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _env_list(name, default=''):
+    return [v.strip() for v in os.getenv(name, default).split(',') if v.strip()]
+
+
+# Local runs default to DEBUG on (run_local.sh). Containers/production set DEBUG=0.
+DEBUG = _env_bool('DEBUG', True)
+
+_DEV_SECRET = 'django-insecure-dev-only-key-do-not-use-in-production'
+SECRET_KEY = os.getenv('SECRET_KEY', _DEV_SECRET if DEBUG else '')
+if not DEBUG and (not SECRET_KEY or SECRET_KEY == _DEV_SECRET or SECRET_KEY.startswith('django-enterprise-prod-secret-key')):
+    raise ImproperlyConfigured('Set a unique SECRET_KEY environment variable when DEBUG is off.')
+
+ALLOWED_HOSTS = _env_list('ALLOWED_HOSTS', '' if DEBUG else 'localhost,127.0.0.1')
+CSRF_TRUSTED_ORIGINS = _env_list('CSRF_TRUSTED_ORIGINS')
+
+# Set HTTPS_ONLY=1 when served over TLS (directly or via a TLS-terminating proxy).
+HTTPS_ONLY = _env_bool('HTTPS_ONLY', False)
+if HTTPS_ONLY:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))
+
+# Origins allowed to embed the app in an iframe (e.g. the CRM widget). Empty = same-origin only.
+EMBED_ALLOWED_ORIGINS = _env_list('EMBED_ALLOWED_ORIGINS')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -48,10 +73,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'assistant.middleware.EmbedPolicyMiddleware',
 ]
 
-# Allow iframe embedding for company intranet portal
-X_FRAME_OPTIONS = 'SAMEORIGIN'
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # overridden per-response by EmbedPolicyMiddleware when EMBED_ALLOWED_ORIGINS is set
 
 ROOT_URLCONF = 'config.urls'
 
@@ -79,7 +104,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -126,13 +151,40 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+DATA_UPLOAD_MAX_MEMORY_SIZE = 55 * 1024 * 1024
+MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '50'))
 
 # MIICiQ RAG & Local LLM Configuration
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://127.0.0.1:11434')
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3.1:8b-instruct')
 OLLAMA_EMBED_MODEL = os.getenv('OLLAMA_EMBED_MODEL', 'nomic-embed-text')
 CHROMA_PERSIST_DIR = BASE_DIR / 'chroma_db'
-RAG_TOP_K = int(os.getenv('RAG_TOP_K', '5'))
+RAG_TOP_K = int(os.getenv('RAG_TOP_K', '4'))
+# 'hash' = built-in offline hashing embedder; 'ollama' = neural embeddings (needs `ollama pull` of OLLAMA_EMBED_MODEL,
+# then `python manage.py rebuild_index`).
+RAG_EMBEDDING_BACKEND = os.getenv('RAG_EMBEDDING_BACKEND', 'hash').lower()
+RAG_CONTEXT_CHAR_BUDGET = int(os.getenv('RAG_CONTEXT_CHAR_BUDGET', '7000'))
+OLLAMA_NUM_CTX = int(os.getenv('OLLAMA_NUM_CTX', '4096'))
+OLLAMA_KEEP_ALIVE = os.getenv('OLLAMA_KEEP_ALIVE', '30m')
+OLLAMA_READ_TIMEOUT = int(os.getenv('OLLAMA_READ_TIMEOUT', '90'))
+
+# Per-user rate limit for chat requests (requests per minute)
+CHAT_RATE_LIMIT_PER_MIN = int(os.getenv('CHAT_RATE_LIMIT_PER_MIN', '20'))
+
+# Shared cache (rate limiting, health checks). LocMem is per-process; use Redis/DB cache for multi-worker accuracy.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'miiciq',
+    }
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'loggers': {'assistant': {'handlers': ['console'], 'level': os.getenv('LOG_LEVEL', 'INFO')}},
+}
 CHUNK_SIZE = int(os.getenv('RAG_CHUNK_SIZE', '800'))
 CHUNK_OVERLAP = int(os.getenv('RAG_CHUNK_OVERLAP', '100'))
 
@@ -149,5 +201,7 @@ SESSION_COOKIE_NAME = 'miiciq_sessionid'
 CSRF_COOKIE_NAME = 'miiciq_csrftoken'
 SESSION_COOKIE_AGE = 86400 * 14  # 14 days
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'None' if (EMBED_ALLOWED_ORIGINS and HTTPS_ONLY) else 'Lax'
+if EMBED_ALLOWED_ORIGINS and HTTPS_ONLY:
+    CSRF_COOKIE_SAMESITE = 'None'
 

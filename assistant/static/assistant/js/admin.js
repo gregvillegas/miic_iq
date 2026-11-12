@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const data = await resp.json();
         if (data.status === 'success') {
-          if (uploadStatus) uploadStatus.innerHTML = `<span style="color:var(--accent-emerald)">✅ ${data.message} (${data.chunks} chunks generated)</span>`;
+          if (uploadStatus) uploadStatus.innerHTML = `<span style="color:var(--accent-emerald)">✅ ${data.message}</span>`;
           setTimeout(() => { window.location.reload(); }, 1200);
         } else {
           if (uploadStatus) uploadStatus.innerHTML = `<span style="color:var(--accent-rose)">❌ ${data.error || data.message}</span>`;

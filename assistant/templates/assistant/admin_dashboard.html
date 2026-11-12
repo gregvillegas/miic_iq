@@ -26,6 +26,11 @@
       <span class="metric-value" style="color:var(--accent-emerald)">{{ avg_latency }} <span style="font-size:0.9rem; font-weight:normal;">ms</span></span>
     </div>
     <div class="metric-card">
+      <span class="metric-label">Answered From Cache</span>
+      <span class="metric-value" style="color:var(--accent-emerald)">{{ cache_hit_rate }}%</span>
+      <span class="metric-label">{{ cached_answers_count }} saved · {{ curated_faq_count }} curated FAQ</span>
+    </div>
+    <div class="metric-card">
       <span class="metric-label">User Satisfaction</span>
       <span class="metric-value" style="color:var(--accent-amber)">{{ satisfaction_rate }}%</span>
     </div>

@@ -25,6 +25,8 @@ if [ "$DOC_COUNT" -eq "0" ]; then
     python manage.py ingest_samples
 fi
 
+# Philippine compliance guides (RA 10173, DOLE) + IT product KB + curated FAQ (idempotent)
+python manage.py seed_ph_knowledge
 echo "=========================================================="
 echo "  🌐 Server running at: http://127.0.0.1:8000/"
 echo "  💬 Chat Dashboard:   http://127.0.0.1:8000/"

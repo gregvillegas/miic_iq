@@ -1,16 +1,68 @@
 import os
 import time
 import logging
+import threading
+import contextlib
 from typing import Dict, Any, Tuple
 from django.utils import timezone
 from assistant.models import Document, DocumentChunk
 from assistant.services.document_processor import DocumentParser, RecursiveChunker
-from assistant.services.vector_store import VectorStoreService
+from assistant.services.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
 
+_INGEST_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def _ingest_guard():
+    """Serialise index writes across threads and gunicorn worker processes (Chroma/SQLite are single-writer)."""
+    from django.conf import settings
+    with _INGEST_LOCK:
+        lock_path = os.path.join(str(settings.CHROMA_PERSIST_DIR), '.ingest.lock')
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+        with open(lock_path, 'w') as fh:
+            try:
+                import fcntl
+                fcntl.flock(fh, fcntl.LOCK_EX)
+            except ImportError:  # non-POSIX: thread lock only
+                pass
+            try:
+                yield
+            finally:
+                try:
+                    fcntl.flock(fh, fcntl.LOCK_UN)
+                except Exception:
+                    pass
+
+
+def ingest_document_async(document: Document) -> None:
+    """Index in a background thread so uploads return immediately; status is tracked on the Document."""
+    document.status = 'processing'
+    document.error_message = ''
+    document.save(update_fields=['status', 'error_message'])
+    doc_id = document.pk
+
+    def _run():
+        from django.db import connection
+        try:
+            doc = Document.objects.get(pk=doc_id)
+            ingest_document(doc)
+        except Exception:
+            logger.exception("Background ingestion crashed for %s", doc_id)
+            Document.objects.filter(pk=doc_id).update(status='failed', error_message='Indexing crashed; see server log.')
+        finally:
+            connection.close()
+
+    threading.Thread(target=_run, name=f"ingest-{doc_id}", daemon=True).start()
+
 
 def ingest_document(document: Document) -> Tuple[bool, str]:
+    with _ingest_guard():
+        return _ingest_document_locked(document)
+
+
+def _ingest_document_locked(document: Document) -> Tuple[bool, str]:
     """
     Ingests a single Document instance:
     1. Parses file pages and sections.
@@ -51,7 +103,7 @@ def ingest_document(document: Document) -> Tuple[bool, str]:
             raise ValueError("Could not generate valid text chunks.")
 
         # 3. Clean previous chunks in DB & Chroma
-        vector_store = VectorStoreService()
+        vector_store = get_vector_store()
         vector_store.delete_document_chunks(str(document.id))
         document.chunks.all().delete()
 
@@ -102,21 +154,22 @@ def rebuild_vector_index() -> Dict[str, Any]:
     Rebuilds the entire Chroma vector store and BM25 index from all active documents.
     """
     start_time = time.time()
-    vector_store = VectorStoreService()
-    vector_store.reset_collection()
+    vector_store = get_vector_store()
 
     documents = Document.objects.all()
     successful = 0
     failed = 0
     total_chunks = 0
 
-    for doc in documents:
-        success, msg = ingest_document(doc)
-        if success:
-            successful += 1
-            total_chunks += doc.chunk_count
-        else:
-            failed += 1
+    with _ingest_guard():
+        vector_store.reset_collection()
+        for doc in documents:
+            success, msg = _ingest_document_locked(doc)
+            if success:
+                successful += 1
+                total_chunks += doc.chunk_count
+            else:
+                failed += 1
 
     elapsed = round(time.time() - start_time, 2)
     return {

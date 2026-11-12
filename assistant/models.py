@@ -27,6 +27,9 @@ class Document(models.Model):
         ('HR', 'Human Resources'),
         ('IT', 'Information Technology & Security'),
         ('Finance', 'Finance & Expenses'),
+        ('Data Privacy', 'Data Privacy (RA 10173 / NPC)'),
+        ('Labor Law', 'Labor Law (DOLE)'),
+        ('IT Products', 'IT & Office Products'),
         ('Other', 'Other Documentation'),
     ]
 
@@ -133,6 +136,9 @@ class ChatMessage(models.Model):
     sources_json = models.JSONField(default=list, blank=True)  # list of citations
     latency_ms = models.IntegerField(null=True, blank=True)
     is_low_confidence = models.BooleanField(default=False)
+    cached_answer = models.ForeignKey(
+        'CachedAnswer', null=True, blank=True, on_delete=models.SET_NULL, related_name='messages'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -163,6 +169,7 @@ class QueryAuditLog(models.Model):
     is_unanswered_or_low_confidence = models.BooleanField(default=False)
     feedback_rating = models.SmallIntegerField(null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    served_from_cache = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -170,6 +177,45 @@ class QueryAuditLog(models.Model):
 
     def __str__(self):
         return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.user}: {self.query_text[:50]}"
+
+
+class CachedAnswer(models.Model):
+    """
+    Canned answer store.
+
+    Two kinds of rows:
+    - Auto-cached: verified-good RAG answers, valid only while the knowledge base
+      signature is unchanged and the answer has not been down-voted.
+    - Curated (is_curated=True): admin-approved FAQ answers that survive re-indexing.
+
+    `scope` is the most restrictive Document.access_role used by the answer, so a
+    manager-only answer is never replayed to an employee.
+    """
+    SCOPE_CHOICES = Document.ACCESS_ROLE_CHOICES
+
+    query_hash = models.CharField(max_length=64, db_index=True)
+    token_key = models.CharField(max_length=255, db_index=True)  # sorted salient tokens (fuzzy match)
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default='all')
+    question = models.TextField()
+    answer = models.TextField()
+    sources_json = models.JSONField(default=list, blank=True)
+    topic = models.CharField(max_length=50, blank=True, default='')
+    kb_signature = models.CharField(max_length=64, blank=True, default='')
+    is_curated = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    hit_count = models.IntegerField(default=0)
+    upvotes = models.IntegerField(default=0)
+    downvotes = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_hit_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-hit_count', '-created_at']
+        indexes = [models.Index(fields=['query_hash', 'scope'])]
+
+    def __str__(self):
+        flag = 'FAQ' if self.is_curated else 'cache'
+        return f"[{flag}] {self.question[:60]} (hits={self.hit_count})"
 
 
 class SystemConfig(models.Model):

@@ -105,15 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNewChat = document.getElementById('btnNewChat');
   if (btnNewChat) {
     btnNewChat.addEventListener('click', async () => {
-      try {
-        const resp = await fetch('/api/chat/new/', { credentials: 'same-origin' });
-        const data = await resp.json();
-        if (data.session_id) {
-          window.location.href = `/?session_id=${data.session_id}`;
-        }
-      } catch (err) {
-        window.location.href = '/';
-      }
+      // A session is created on the first message, so no blank conversations pile up.
+      window.location.href = '/';
     });
   }
 
@@ -264,6 +257,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          textBubble.innerHTML = '<p style="color:var(--accent-amber)">⏳ You are sending questions too quickly. Please wait a few seconds and try again.</p>';
+          return;
+        }
         throw new Error(`Server returned ${response.status}`);
       }
 
@@ -317,7 +314,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionsWrap.style.display = 'flex';
                 if (payload.latency_ms) {
                   const latTag = actionsWrap.querySelector('.latency-tag');
-                  if (latTag) latTag.textContent = `${(payload.latency_ms / 1000).toFixed(2)}s`;
+                  if (latTag) {
+                    const secs = `${(payload.latency_ms / 1000).toFixed(2)}s`;
+                    latTag.textContent = payload.from_cache
+                      ? `⚡ ${secs} · ${payload.verified ? 'verified FAQ' : 'saved answer'}`
+                      : secs;
+                  }
                 }
 
                 if (payload.message_id) {

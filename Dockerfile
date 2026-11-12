@@ -24,12 +24,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application codebase
 COPY . /app/
 
-# Create media, staticfiles, and chroma persistent directories
-RUN mkdir -p /app/media /app/staticfiles /app/chroma_db /app/sample_documents
+# Non-root runtime user; data directories are mounted as volumes at runtime
+RUN useradd --create-home --uid 1000 miiciq \
+    && mkdir -p /app/media /app/staticfiles /app/chroma_db /app/db_volume /app/sample_documents \
+    && chown -R miiciq:miiciq /app
 
-# Run migrations and collect static
-RUN python manage.py migrate && python manage.py collectstatic --noinput || true
+USER miiciq
 
+# Static files are collected at container start (see docker-compose.yml). Migrations also run at start,
+# never at build time, so no database is baked into the image.
 EXPOSE 8000
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/healthz/ || exit 1
+
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--threads", "4", "--timeout", "180"]

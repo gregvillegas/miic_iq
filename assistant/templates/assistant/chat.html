@@ -22,10 +22,26 @@
         <div class="welcome-icon">🤖</div>
         <h1 class="welcome-title">Welcome to MIICiQ</h1>
         <p class="welcome-subtitle">
-          Your private, local AI knowledge assistant. Ask questions about company policies, Sales Order workflows, laptop specifications, memory and SSD compatibility, expense procedures, or search indexed documents.
+          Your private, local AI knowledge assistant. Ask about the Data Privacy Act (RA 10173), Philippine labor law (DOLE), company policies, Sales Order workflows, and the IT products we sell: servers, storage, printers, plotters, UPS, switches, firewalls and operating systems.
         </p>
 
         <div class="quick-prompts-grid">
+          <div class="prompt-card" data-prompt="What must we do if there is a personal data breach under the Data Privacy Act, and how soon must the NPC be notified?">
+            <span class="prompt-card-title">🔒 Data Privacy Act (RA 10173)</span>
+            <span class="prompt-card-desc">Data subject rights, breach notification, consent, and employee responsibilities.</span>
+          </div>
+          <div class="prompt-card" data-prompt="How is the 13th month pay computed and when must it be paid?">
+            <span class="prompt-card-title">⚖ Labor Law (DOLE)</span>
+            <span class="prompt-card-desc">13th month pay, overtime, holiday pay, leaves, termination, and final pay.</span>
+          </div>
+          <div class="prompt-card" data-prompt="How do I size a UPS for a server rack and what is the difference between line-interactive and online UPS?">
+            <span class="prompt-card-title">🔋 UPS, Servers &amp; Storage</span>
+            <span class="prompt-card-desc">Sizing, RAID levels, rack vs tower, licensing, and warranty basics.</span>
+          </div>
+          <div class="prompt-card" data-prompt="What is the difference between a managed and unmanaged switch, and when do I need PoE?">
+            <span class="prompt-card-title">🌐 Switches, Firewalls &amp; Printers</span>
+            <span class="prompt-card-desc">Network sizing, firewall throughput, printer and plotter selection.</span>
+          </div>
           <div class="prompt-card" data-prompt="How do I process a Sales Order in ERP? What are the step-by-step procedures?">
             <span class="prompt-card-title">📦 Sales Order (SO-101) Process</span>
             <span class="prompt-card-desc">Quotation, approval thresholds, warehouse pick lists, and invoicing.</span>
@@ -50,6 +66,12 @@
             <span class="prompt-card-title">💻 Laptop Memory / SSD Compatibility</span>
             <span class="prompt-card-desc">Use uploaded datasheets and engineering specs to answer upgrade and compatibility questions.</span>
           </div>
+          {% for q in suggested_questions %}
+          <div class="prompt-card" data-prompt="{{ q.question }}">
+            <span class="prompt-card-title">🔥 Popular question</span>
+            <span class="prompt-card-desc">{{ q.question|truncatechars:90 }}</span>
+          </div>
+          {% endfor %}
         </div>
       </div>
     {% else %}

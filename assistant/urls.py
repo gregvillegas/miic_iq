@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/chat/session/<uuid:session_id>/', views.get_session_messages_api, name='api_session_messages'),
     path('api/chat/new/', views.create_new_session_api, name='api_new_session'),
     path('api/chat/session/<uuid:session_id>/delete/', views.delete_session_api, name='api_delete_session'),
+    path('api/suggestions/', views.suggested_questions_api, name='api_suggestions'),
     path('api/feedback/', views.feedback_api, name='api_feedback'),
     path('api/chunk/<str:chunk_id>/', views.get_chunk_preview_api, name='api_chunk_preview'),
     path('api/source/resolve/', views.resolve_source_api, name='api_resolve_source'),
@@ -32,5 +33,6 @@ urlpatterns = [
     path('api/admin/delete/<uuid:doc_id>/', views.delete_document_api, name='api_delete_document'),
 
     # System
+    path('healthz/', views.healthz, name='healthz'),
     path('api/system/health/', views.system_health_api, name='api_system_health'),
 ]
